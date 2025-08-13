@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Rubik's Cube Color Change Animation</title>
+<style>
+  body { margin: 0; background: #000; }
+  canvas { display: block; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/three@0.148.0/build/three.min.js"></script>
+<script>
+  // OrbitControls implementation
+  THREE.OrbitControls = function (camera, domElement) {
+    this.camera = camera;
+    this.domElement = domElement || document;
+    this.enabled = true;
+    this.target = new THREE.Vector3();
+    this.minDistance = 0;
+    this.maxDistance = Infinity;
+    this.minPolarAngle = 0;
+    this.maxPolarAngle = Math.PI;
+    this.minAzimuthAngle = -Infinity;
+    this.maxAzimuthAngle = Infinity;
+    this.dampingFactor = 0.05;
+    this.enableDamping = false;
+    this.enableZoom = true;
+    this.zoomSpeed = 0.1;
+    this.enableRotate = true;
+    this.rotateSpeed = 0.1;
+    this.enablePan = true;
+    this.panSpeed = 0.1;
+    this.screenSpacePanning = true;
+    this.keyPanSpeed = 0.5;
+    this.autoRotate = false;
+    this.autoRotateSpeed = 0.2;
+    this.keys = {
+      LEFT: 37,
+      UP: 38,
+      RIGHT: 39,
+      BOTTOM: 40
+    };
+    this.mouseButtons = {
+      LEFT: THREE.MOUSE.ROTATE,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.PAN
+    };
+    var scope = this;
+    var EPS = 0.000001;
+    var spherical = new THREE.Spherical();
+    var sphericalDelta = new THREE.Spherical();
+    var scale = 1;
+    var panOffset = new THREE.Vector3();
+    var lastPosition = new THREE.Vector3();
+    var state = {
+      NONE: -1,
+      ROTATE: 0,
+      DOLLY: 1,
+      PAN: 2,
+      TOUCH_ROTATE: 3,
+      TOUCH_DOLLY_PAN: 4
+    };
+    var currentState = state.NONE;
+    var touchStartTime = 0;
+    var touchStartPosition = new THREE.Vector2();
+    var touchStartDistance = 0;
+    var mouseDownPosition = new THREE.Vector2();
+    function getPolarAngle() {
+      return Math.atan2(Math.sqrt(camera.position.x * camera.position.x + camera.position.z * camera.position.z), camera.position.y);
+    }
+    function getAzimuthalAngle() {
+      return Math.atan2(camera.position.x, camera.position.z);
+    }
+    function rotateLeft(angle) {
+      sphericalDelta.phi -= angle;
+    }
+    function rotateUp(angle) {
+      sphericalDelta.theta -= angle;
+    }
+    function panLeft(distance, objectMatrix) {
+      var v = new THREE.Vector3();
+      v.setFromMatrixColumn(objectMatrix, 0);
+      v.multiplyScalar(-distance);
+      panOffset.add(v);
+    }
+    function panUp(distance, objectMatrix) {
+      var v = new THREE.Vector3();
+      if (scope.screenSpacePanning === true) {
+        v.setFromMatrixColumn(objectMatrix, 1);
+      } else {
+        v.setFromMatrixColumn(objectMatrix, 0);
+        v.crossVectors(scope.camera.up, v);
+      }
+      v.multiplyScalar(distance);
+      panOffset.add(v);
+    }
+    function pan(deltaX, deltaY) {
+      var element = scope.domElement === document ? scope.domElement.body : scope.domElement;
+      if (scope.screenSpacePanning === true) {
+        var position = new THREE.Vector3();
+        position.setFromMatrixPosition(scope.camera.matrixWorld);
+        var target = new THREE.Vector3();
+        target.copy(scope.target);
+        var dir = new THREE.Vector3();
+        dir.subVectors(position, target);
+        var targetDistance = dir.length();
+        dir.normalize();
+        var eye = new THREE.Vector3();
+        eye.copy(position);
+        var end = new THREE.Vector3();
+        end.copy(target);
+        var tempTarget = new THREE.Vector3();
+        tempTarget.copy(target);
+        var matrix = new THREE.Matrix4();
+        matrix.lookAt(eye, end, scope.camera.up);
+        var right = new THREE.Vector3();
+        right.setFromMatrixColumn(matrix, 0);
+        var up = new THREE.Vector3();
+        up.setFromMatrixColumn(matrix, 1);
+        var scale = targetDistance * Math.tan(scope.camera.fov * 0.5 * Math.PI / 180.0) / element.clientHeight;
+        right.multiplyScalar(-deltaX * scale);
+        up.multiplyScalar(deltaY * scale);
+        tempTarget.add(right);
+        tempTarget.add(up);
+        panOffset.subVectors(tempTarget, target);
+      } else {
+        var offset = new THREE.Vector3();
+        var te = scope.camera.matrix.elements;
+        offset.x = -deltaX * te[0] - deltaY * te[4];
+        offset.y = -deltaX * te[1] - deltaY * te[5];
+        offset.z = -deltaX * te[2] - deltaY * te[6];
+        offset.normalize();
+        var distance = Math.sqrt(scope.camera.position.x * scope.camera.position.x + scope.camera.position.y * scope.camera.position.y + scope.camera.position.z * scope.camera.position.z);
+        offset.multiplyScalar(distance * 0.001);
+        panOffset.add(offset);
+      }
+    }
+    function dollyIn(dollyScale) {
+      scale /= dollyScale;
+    }
+    function dollyOut(dollyScale) {
+      scale *= dollyScale;
+    }
+    this.getPolarAngle = getPolarAngle;
+    this.getAzimuthalAngle = getAzimuthalAngle;
+    this.rotateLeft = rotateLeft;
+    this.rotateUp = rotateUp;
+    this.panLeft = panLeft;
+    this.panUp = panUp;
+    this.pan = pan;
+    this.dollyIn = dollyIn;
+    this.dollyOut = dollyOut;
+    this.update = function () {
+      var offset = new THREE.Vector3();
+      offset.copy(scope.camera.position).sub(scope.target);
+      spherical.setFromVector3(offset);
+      spherical.theta += sphericalDelta.theta;
+      spherical.phi += sphericalDelta.phi;
+      spherical.theta = Math.max(scope.minAzimuthAngle, Math.min(scope.maxAzimuthAngle, spherical.theta));
+      spherical.phi = Math.max(scope.minPolarAngle, Math.min(scope.maxPolarAngle, spherical.phi));
+      spherical.makeSafe();
+      spherical.radius *= scale;
+      spherical.radius = Math.max(scope.minDistance, Math.min(scope.maxDistance, spherical.radius));
+      offset.setFromSpherical(spherical);
+      scope.camera.position.copy(scope.target).add(offset);
+      scope.camera.lookAt(scope.target);
+      if (scope.enableDamping === true) {
+        sphericalDelta.theta *= (1 - scope.dampingFactor);
+        sphericalDelta.phi *= (1 - scope.dampingFactor);
+        scale = 1 + (scale - 1) * (1 - scope.dampingFactor);
+      } else {
+        sphericalDelta.set(0, 0, 0);
+        scale = 1;
+      }
+      scope.camera.position.add(panOffset);
+      scope.target.add(panOffset);
+      panOffset.set(0, 0, 0);
+      if (scope.autoRotate === true && currentState === state.NONE) {
+        rotateLeft(scope.autoRotateSpeed / 60 * Math.PI / 180);
+      }
+      if (lastPosition.distanceToSquared(scope.camera.position) > EPS) {
+        lastPosition.copy(scope.camera.position);
+        return true;
+      }
+      return false;
+    };
+    this.dispose = function () {
+      scope.domElement.removeEventListener('contextmenu', onContextMenu, false);
+      scope.domElement.removeEventListener('mousedown', onMouseDown, false);
+      scope.domElement.removeEventListener('wheel', onMouseWheel, false);
+      scope.domElement.removeEventListener('touchstart', onTouchStart, false);
+      scope.domElement.removeEventListener('touchend', onTouchEnd, false);
+      scope.domElement.removeEventListener('touchmove', onTouchMove, false);
+      window.removeEventListener('mousemove', onMouseMove, false);
+      window.removeEventListener('mouseup', onMouseUp, false);
+      window.removeEventListener('keydown', onKeyDown, false);
+    };
+    function onContextMenu(event) {
+      if (scope.enabled === true) {
+        event.preventDefault();
+      }
+    }
+    function onMouseDown(event) {
+      if (scope.enabled === false) return;
+      if (event.button === 0 && scope.mouseButtons.LEFT === THREE.MOUSE.ROTATE ||
+          event.button === 1 && scope.mouseButtons.MIDDLE === THREE.MOUSE.DOLLY ||
+          event.button === 2 && scope.mouseButtons.RIGHT === THREE.MOUSE.PAN) {
+        event.preventDefault();
+        mouseDownPosition.set(event.clientX, event.clientY);
+        currentState = (event.button === 0) ? state.ROTATE : (event.button === 1) ? state.DOLLY : state.PAN;
+        scope.domElement.addEventListener('mousemove', onMouseMove, false);
+        window.addEventListener('mouseup', onMouseUp, false);
+      }
+    }
+    function onMouseMove(event) {
+      if (scope.enabled === false) return;
+      event.preventDefault();
+      var movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+      var movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
+      if (currentState === state.ROTATE && scope.enableRotate === true) {
+        var element = scope.domElement === document ? scope.domElement.body : scope.domElement;
+        rotateLeft(2 * Math.PI * movementX / element.clientHeight * scope.rotateSpeed);
+        rotateUp(2 * Math.PI * movementY / element.clientHeight * scope.rotateSpeed);
+      } else if (currentState === state.PAN && scope.enablePan === true) {
+        pan(movementX, movementY);
+      }
+    }
+    function onMouseUp(event) {
+      if (scope.enabled === false) return;
+      currentState = state.NONE;
+      scope.domElement.removeEventListener('mousemove', onMouseMove, false);
+      window.removeEventListener('mouseup', onMouseUp, false);
+    }
+    function onMouseWheel(event) {
+      if (scope.enabled === false || scope.enableZoom === false) return;
+      event.preventDefault();
+      var delta = 0;
+      if (event.deltaY) {
+        delta = event.deltaY;
+      } else if (event.wheelDelta) {
+        delta = -event.wheelDelta;
+      }
+      if (delta > 0) {
+        dollyIn(1.1);
+      } else {
+        dollyOut(1.1);
+      }
+    }
+    function onKeyDown(event) {
+      if (scope.enabled === false || scope.enablePan === false) return;
+      switch (event.keyCode) {
+        case scope.keys.LEFT:
+          panLeft(scope.keyPanSpeed);
+          break;
+        case scope.keys.RIGHT:
+          panLeft(-scope.keyPanSpeed);
+          break;
+        case scope.keys.UP:
+          panUp(scope.keyPanSpeed);
+          break;
+        case scope.keys.BOTTOM:
+          panUp(-scope.keyPanSpeed);
+          break;
+      }
+    }
+    function onTouchStart(event) {
+      if (scope.enabled === false) return;
+      switch (event.touches.length) {
+        case 1:
+          touchStartTime = Date.now();
+          touchStartPosition.set(event.touches[0].clientX, event.touches[0].clientY);
+          currentState = state.TOUCH_ROTATE;
+          break;
+        case 2:
+          var dx = event.touches[0].clientX - event.touches[1].clientX;
+          var dy = event.touches[0].clientY - event.touches[1].clientY;
+          touchStartDistance = Math.sqrt(dx * dx + dy * dy);
+          currentState = state.TOUCH_DOLLY_PAN;
+          break;
+        default:
+          currentState = state.NONE;
+      }
+    }
+    function onTouchEnd(event) {
+      currentState = state.NONE;
+    }
+    function onTouchMove(event) {
+      if (scope.enabled === false) return;
+      event.preventDefault();
+      switch (event.touches.length) {
+        case 1:
+          if (currentState === state.TOUCH_ROTATE && scope.enableRotate === true) {
+            var deltaX = event.touches[0].clientX - touchStartPosition.x;
+            var deltaY = event.touches[0].clientY - touchStartPosition.y;
+            touchStartPosition.set(event.touches[0].clientX, event.touches[0].clientY);
+            var element = scope.domElement === document ? scope.domElement.body : scope.domElement;
+            rotateLeft(2 * Math.PI * deltaX / element.clientHeight * scope.rotateSpeed);
+            rotateUp(2 * Math.PI * deltaY / element.clientHeight * scope.rotateSpeed);
+          }
+          break;
+        case 2:
+          if (currentState === state.TOUCH_DOLLY_PAN) {
+            var dx = event.touches[0].clientX - event.touches[1].clientX;
+            var dy = event.touches[0].clientY - event.touches[1].clientY;
+            var distance = Math.sqrt(dx * dx + dy * dy);
+            if (scope.enableZoom === true) {
+              var factor = touchStartDistance / distance;
+              if (factor !== Infinity) {
+                scale *= factor;
+              }
+            }
+            touchStartDistance = distance;
+            if (scope.enablePan === true) {
+              var x = (event.touches[0].clientX + event.touches[1].clientX) / 2;
+              var y = (event.touches[0].clientY + event.touches[1].clientY) / 2;
+              var deltaX = x - touchStartPosition.x;
+              var deltaY = y - touchStartPosition.y;
+              touchStartPosition.set(x, y);
+              pan(deltaX, deltaY);
+            }
+          }
+          break;
+      }
+    }
+    scope.domElement.addEventListener('contextmenu', onContextMenu, false);
+    scope.domElement.addEventListener('mousedown', onMouseDown, false);
+    scope.domElement.addEventListener('wheel', onMouseWheel, false);
+    scope.domElement.addEventListener('touchstart', onTouchStart, false);
+    scope.domElement.addEventListener('touchend', onTouchEnd, false);
+    scope.domElement.addEventListener('touchmove', onTouchMove, false);
+    window.addEventListener('keydown', onKeyDown, false);
+    spherical.setFromVector3(scope.camera.position.sub(scope.target));
+    lastPosition.copy(scope.camera.position);
+  };
+  // End of OrbitControls implementation
+  </script>
+</head>
+<body>
+<script>
+const initialState = {"U": ["blue", "yellow", "red", "blue", "white", "red", "orange", "yellow", "white"], "R": ["green", "white", "green", "orange", "red", "red", "blue", "white", "white"], "F": ["yellow", "blue", "orange", "green", "green", "green", "red", "blue", "white"], "D": ["red", "yellow", "blue", "yellow", "yellow", "orange", "green", "red", "yellow"], "L": ["white", "blue", "yellow", "white", "orange", "orange", "red", "white", "blue"], "B": ["orange", "orange", "orange", "green", "blue", "green", "green", "red", "yellow"]};
+const moves = [{"U": ["blue", "yellow", "white", "blue", "white", "green", "orange", "yellow", "orange"], "R": ["green", "red", "white", "white", "red", "white", "green", "orange", "blue"], "F": ["yellow", "blue", "yellow", "green", "green", "orange", "red", "blue", "blue"], "D": ["red", "yellow", "green", "yellow", "yellow", "green", "green", "red", "orange"], "L": ["white", "blue", "yellow", "white", "orange", "orange", "red", "white", "blue"], "B": ["white", "orange", "orange", "red", "blue", "green", "red", "red", "yellow"]}, {"U": ["red", "white", "white", "blue", "white", "green", "orange", "yellow", "orange"], "R": ["green", "red", "blue", "white", "red", "yellow", "green", "orange", "white"], "F": ["red", "green", "yellow", "blue", "green", "blue", "blue", "orange", "yellow"], "D": ["red", "yellow", "green", "yellow", "yellow", "green", "blue", "white", "white"], "L": ["green", "blue", "yellow", "red", "orange", "orange", "orange", "white", "blue"], "B": ["white", "orange", "orange", "red", "blue", "green", "red", "red", "yellow"]}, {"U": ["white", "green", "orange", "white", "white", "yellow", "red", "blue", "orange"], "R": ["orange", "orange", "white", "white", "red", "yellow", "green", "orange", "white"], "F": ["blue", "red", "green", "blue", "green", "blue", "blue", "orange", "yellow"], "D": ["red", "yellow", "green", "yellow", "yellow", "green", "blue", "white", "white"], "L": ["yellow", "green", "red", "red", "orange", "orange", "orange", "white", "blue"], "B": ["yellow", "blue", "green", "red", "blue", "green", "red", "red", "yellow"]}, {"U": ["orange", "yellow", "orange", "green", "white", "blue", "white", "white", "red"], "R": ["green", "blue", "yellow", "white", "red", "yellow", "green", "orange", "white"], "F": ["white", "orange", "orange", "blue", "green", "blue", "blue", "orange", "yellow"], "D": ["red", "yellow", "green", "yellow", "yellow", "green", "blue", "white", "white"], "L": ["green", "red", "blue", "red", "orange", "orange", "orange", "white", "blue"], "B": ["red", "green", "yellow", "red", "blue", "green", "red", "red", "yellow"]}, {"U": ["orange", "yellow", "yellow", "green", "white", "blue", "white", "white", "orange"], "R": ["yellow", "yellow", "white", "blue", "red", "orange", "green", "white", "green"], "F": ["white", "orange", "white", "blue", "green", "green", "blue", "orange", "green"], "D": ["red", "yellow", "red", "yellow", "yellow", "red", "blue", "white", "red"], "L": ["green", "red", "blue", "red", "orange", "orange", "orange", "white", "blue"], "B": ["red", "green", "yellow", "blue", "blue", "green", "orange", "red", "yellow"]}, {"U": ["orange", "red", "green", "green", "white", "blue", "white", "white", "orange"], "R": ["yellow", "yellow", "orange", "blue", "red", "yellow", "green", "white", "yellow"], "F": ["blue", "blue", "white", "orange", "green", "orange", "green", "green", "white"], "D": ["red", "yellow", "red", "yellow", "yellow", "red", "green", "orange", "white"], "L": ["blue", "red", "blue", "white", "orange", "orange", "red", "white", "blue"], "B": ["red", "green", "yellow", "blue", "blue", "green", "orange", "red", "yellow"]}, {"U": ["green", "blue", "orange", "red", "white", "white", "orange", "green", "white"], "R": ["yellow", "green", "red", "blue", "red", "yellow", "green", "white", "yellow"], "F": ["orange", "yellow", "yellow", "orange", "green", "orange", "green", "green", "white"], "D": ["red", "yellow", "red", "yellow", "yellow", "red", "green", "orange", "white"], "L": ["white", "blue", "blue", "white", "orange", "orange", "red", "white", "blue"], "B": ["blue", "red", "blue", "blue", "blue", "green", "orange", "red", "yellow"]}, {"U": ["red", "white", "white", "red", "white", "white", "orange", "green", "white"], "R": ["yellow", "green", "green", "blue", "red", "blue", "green", "white", "orange"], "F": ["green", "orange", "orange", "green", "green", "yellow", "white", "orange", "yellow"], "D": ["red", "yellow", "red", "yellow", "yellow", "red", "yellow", "yellow", "red"], "L": ["green", "blue", "blue", "orange", "orange", "orange", "white", "white", "blue"], "B": ["blue", "red", "blue", "blue", "blue", "green", "orange", "red", "yellow"]}, {"U": ["red", "white", "white", "red", "white", "white", "orange", "green", "white"], "R": ["yellow", "green", "green", "blue", "red", "blue", "yellow", "orange", "white"], "F": ["green", "orange", "orange", "green", "green", "yellow", "blue", "white", "white"], "D": ["yellow", "yellow", "red", "yellow", "yellow", "yellow", "red", "red", "red"], "L": ["green", "blue", "blue", "orange", "orange", "orange", "yellow", "red", "orange"], "B": ["blue", "red", "blue", "blue", "blue", "green", "orange", "white", "green"]}, {"U": ["white", "white", "white", "white", "white", "green", "red", "red", "orange"], "R": ["blue", "red", "blue", "blue", "red", "blue", "yellow", "orange", "white"], "F": ["green", "green", "yellow", "green", "green", "yellow", "blue", "white", "white"], "D": ["yellow", "yellow", "red", "yellow", "yellow", "yellow", "red", "red", "red"], "L": ["orange", "orange", "green", "orange", "orange", "orange", "yellow", "red", "orange"], "B": ["blue", "blue", "green", "blue", "blue", "green", "orange", "white", "green"]}, {"U": ["white", "white", "white", "white", "white", "green", "orange", "orange", "green"], "R": ["red", "red", "blue", "red", "red", "blue", "orange", "orange", "white"], "F": ["green", "green", "yellow", "green", "green", "yellow", "blue", "white", "white"], "D": ["yellow", "blue", "blue", "yellow", "yellow", "yellow", "red", "red", "red"], "L": ["orange", "orange", "yellow", "orange", "orange", "yellow", "yellow", "red", "red"], "B": ["orange", "blue", "blue", "white", "blue", "blue", "green", "green", "green"]}, {"U": ["white", "white", "white", "white", "white", "green", "orange", "orange", "green"], "R": ["red", "red", "blue", "red", "red", "blue", "white", "white", "blue"], "F": ["green", "green", "yellow", "green", "green", "yellow", "red", "red", "yellow"], "D": ["red", "yellow", "yellow", "red", "yellow", "blue", "red", "yellow", "blue"], "L": ["orange", "orange", "yellow", "orange", "orange", "yellow", "green", "green", "green"], "B": ["orange", "blue", "blue", "white", "blue", "blue", "white", "orange", "orange"]}, {"U": ["white", "white", "white", "white", "white", "white", "orange", "orange", "orange"], "R": ["white", "red", "red", "white", "red", "red", "blue", "blue", "blue"], "F": ["green", "green", "green", "green", "green", "green", "red", "red", "white"], "D": ["red", "yellow", "yellow", "red", "yellow", "yellow", "red", "yellow", "yellow"], "L": ["orange", "orange", "yellow", "orange", "orange", "yellow", "green", "green", "green"], "B": ["blue", "blue", "blue", "blue", "blue", "blue", "yellow", "orange", "orange"]}, {"U": ["white", "white", "white", "white", "white", "white", "orange", "orange", "orange"], "R": ["white", "red", "red", "white", "red", "red", "white", "red", "red"], "F": ["green", "green", "green", "green", "green", "green", "green", "green", "green"], "D": ["red", "red", "red", "yellow", "yellow", "yellow", "yellow", "yellow", "yellow"], "L": ["orange", "orange", "yellow", "orange", "orange", "yellow", "orange", "orange", "yellow"], "B": ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue"]}, {"U": ["white", "white", "white", "white", "white", "white", "white", "white", "white"], "R": ["red", "red", "red", "red", "red", "red", "red", "red", "red"], "F": ["green", "green", "green", "green", "green", "green", "green", "green", "green"], "D": ["yellow", "yellow", "yellow", "yellow", "yellow", "yellow", "yellow", "yellow", "yellow"], "L": ["orange", "orange", "orange", "orange", "orange", "orange", "orange", "orange", "orange"], "B": ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue"]}];
+const orders = {"U": [0, 1, 2, 3, 4, 5, 6, 7, 8], "R": [9, 10, 11, 12, 13, 14, 15, 16, 17], "F": [18, 19, 20, 21, 22, 23, 24, 25, 26], "D": [27, 28, 29, 30, 31, 32, 33, 34, 35], "L": [36, 37, 38, 39, 40, 41, 42, 43, 44], "B": [45, 46, 47, 48, 49, 50, 51, 52, 53]};
+
+let scene, camera, renderer, controls;
+let stickers = {}; // 保存每个小贴片的Mesh
+
+init();
+animate();
+
+function init() {
+    scene = new THREE.Scene();
+
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(6, 6, 6);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // 轨道控制器
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 3;
+    controls.maxDistance = 20;
+    controls.update();
+
+    // 灯光
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(5, 10, 7);
+    scene.add(dirLight);
+
+    // 创建魔方
+    createCube(initialState, orders);
+
+    // 窗口自适应
+    window.addEventListener('resize', onWindowResize, false);
+
+    // 播放颜色变化
+    playMoves(moves, 1600);
+}
+function makeNumberTexture(number, size = 128) {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    // 背景透明
+    ctx.clearRect(0, 0, size, size);
+
+    // 字体样式
+    ctx.fillStyle = 'black';
+    ctx.font = `${size * 0.7}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // 画数字
+    ctx.fillText(number.toString(), size / 2, size / 2);
+
+    // 创建纹理
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    return texture;
+}
+
+function createCube(state, orders) {
+    const stickerSize = 0.9;
+    const gap = 0.05;
+    const offset = (stickerSize + gap);
+
+    // 每个面的方向和偏移
+    const faceConfig = {
+        U: { normal: [0, 1, 0], base: [0, 1.5, 0], udir: [1, 0, 0], vdir: [0, 0, -1] },
+        D: { normal: [0, -1, 0], base: [0, -1.5, 0], udir: [1, 0, 0], vdir: [0, 0, 1] },
+        F: { normal: [0, 0, 1], base: [0, 0, 1.5], udir: [1, 0, 0], vdir: [0, -1, 0] },
+        B: { normal: [0, 0, -1], base: [0, 0, -1.5], udir: [-1, 0, 0], vdir: [0, -1, 0] },
+        L: { normal: [-1, 0, 0], base: [-1.5, 0, 0], udir: [0, 0, -1], vdir: [0, -1, 0] },
+        R: { normal: [1, 0, 0], base: [1.5, 0, 0], udir: [0, 0, 1], vdir: [0, -1, 0] },
+    };
+
+    for (let face in state) {
+      let colors = state[face];
+      let cfg = faceConfig[face];
+      let numbers = orders[face];
+      for (let i = 0; i < 9; i++) {
+        let row = Math.floor(i / 3);
+        let col = i % 3;
+        let centerOffsetU = (col - 1) * offset;
+        let centerOffsetV = (row - 1) * offset;
+
+        let px = cfg.base[0] + cfg.udir[0] * centerOffsetU + cfg.vdir[0] * centerOffsetV;
+        let py = cfg.base[1] + cfg.udir[1] * centerOffsetU + cfg.vdir[1] * centerOffsetV;
+        let pz = cfg.base[2] + cfg.udir[2] * centerOffsetU + cfg.vdir[2] * centerOffsetV;
+
+        // 颜色贴图
+        let colorMaterial = new THREE.MeshLambertMaterial({ color: colors[i] });
+
+        // 数字贴图
+        let numberTexture = makeNumberTexture(numbers[i]);
+        let numberMaterial = new THREE.MeshBasicMaterial({ map: numberTexture, transparent: true });
+
+        // 创建面片（贴纸）
+        let geometry = new THREE.PlaneGeometry(stickerSize, stickerSize);
+
+        // 创建颜色面
+        let sticker = new THREE.Mesh(geometry, colorMaterial);
+
+        // 创建数字面，稍微抬高避免 z-fighting
+        let numberPlane = new THREE.Mesh(geometry, numberMaterial);
+        numberPlane.position.x += cfg.normal[0] * 0.1;
+        numberPlane.position.y += cfg.normal[1] * 0.1;
+        numberPlane.position.z += cfg.normal[2] * 0.1;
+
+        // 旋转对齐
+        let normal = new THREE.Vector3(...cfg.normal);
+        let up = new THREE.Vector3(...cfg.vdir).negate();
+        let quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+        sticker.quaternion.multiply(quaternion);
+        numberPlane.quaternion.multiply(quaternion);
+
+        // 设置位置
+        sticker.position.set(px, py, pz);
+        numberPlane.position.set(px, py, pz + 0.01);
+
+        scene.add(sticker);
+        scene.add(numberPlane);
+
+        stickers[face + i] = sticker;
+      }
+    }
+}
+
+function updateColors(state) {
+    for (let key in stickers) {
+        let face = key[0];
+        let idx = parseInt(key.slice(1));
+        stickers[key].material.color.set(state[face][idx]);
+    }
+}
+
+function playMoves(moves, interval) {
+    let step = 0;
+    setInterval(() => {
+        if (step < moves.length) {
+            updateColors(moves[step]);
+            step++;
+        }
+    }, interval);
+}
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>

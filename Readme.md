@@ -1,6 +1,6 @@
 # DeepCubeA: 基于深度强化学习的魔方求解器
 
-![GitHub repo size](https://img.shields.io/github/repo-size/yourusername/DeepcubeA)
+![GitHub repo size](https://img.shields.io/github/repo-size/xiaofeng218/DeepcubeA)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![PyTorch](https://img.shields.io/badge/pytorch-2.0%2B-orange)
 
@@ -21,7 +21,7 @@
 1. 克隆仓库：
 
    ```bash
-   git clone https://github.com/yourusername/DeepcubeA.git
+   git clone https://github.com/xiaofeng218/DeepcubeA.git
    cd DeepcubeA
    ```
 

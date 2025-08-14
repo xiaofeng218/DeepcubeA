@@ -1,4 +1,4 @@
-# DeepCubeA: 基于深度强化学习的魔方求解器
+# DeepCubeA: 基于启发式搜索的魔方求解器复现
 
 ![GitHub repo size](https://img.shields.io/github/repo-size/xiaofeng218/DeepcubeA)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)

@@ -33,7 +33,7 @@ class DeepcubeA(LightningModule):
 
         self.updata_K(1)
         
-        # 损失函数，评价这种输出的准确性感觉最好还是相对值
+        # 损失函数
         self.criterion = nn.MSELoss()
         
         # 保存超参数

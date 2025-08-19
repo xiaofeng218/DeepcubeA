@@ -123,8 +123,8 @@ python app.py
 | --- | --- |
 | 打乱步数 | 100 |
 | 解决方案路径长度 | 23 |
-| 求解时间 | 7.2420 秒 |
-| 解决方案路径 | `['R_inv', 'U_inv', 'B', 'F_inv', 'D_inv', 'F', 'D', 'U', 'F', 'U_inv', 'L_inv', 'F_inv', 'R', 'F', 'D', 'F_inv', 'R_inv', 'D', 'B_inv', 'R', 'R', 'D_inv']` |
+| 求解时间 | 8.2756 秒 |
+| 解决方案路径 | `['U_inv', 'B_inv', 'L', 'R', 'D_inv', 'F', 'F', 'R_inv', 'B_inv', 'L_inv', 'D', 'F_inv', 'D_inv', 'F_inv', 'D_inv', 'L', 'D', 'F_inv', 'R_inv', 'B', 'F', 'D']` |
 
 [查看魔方还原过程](https://xiaofeng218.github.io/DeepcubeA/assets/rubiks_solution.html)
 

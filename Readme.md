@@ -71,6 +71,7 @@ python inference.py --actions "U R F D L_inv B_inv"
 ```bash
 python app.py
 ```
+
 在浏览器中打开 `http://localhost:5000` 即可访问网页应用。
 
 ### 配置参数说明
@@ -84,6 +85,8 @@ python app.py
 - `--learning_rate`: 学习率 (默认: 1e-3)
 - `--convergence_threshold`: 收敛阈值 (默认: 0.05)
 - `--compile`: 是否编译加速模型 (默认: True)
+- `--model_path`: 模型路径 (默认: `checkpoint/final_model_K_30.pth`)
+- `--actions`: 初始状态动作 (默认: `""`)
 
 ## 实现细节
 
@@ -128,6 +131,7 @@ python app.py
 #### 性能分析
 
 构建了200组打乱1000-10000次的魔方作为测试集，使用A-star算法进行求解：
+
 * 总测试数：200
 * 测试硬件：NVIDIA A100
 * a-star搜索最大迭代次数：200

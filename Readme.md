@@ -4,6 +4,8 @@
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![PyTorch](https://img.shields.io/badge/pytorch-2.0%2B-orange)
 
+<a href='https://huggingface.co/spaces/Hanxiaofeng123/Deepcube'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Demo-blue'></a>
+
 ## 项目概述
 
 本项目是 [DeepCubeA](https://cse.sc.edu/~foresta/assets/files/SolvingTheRubiksCubeWithDeepReinforcementLearningAndSearch_Final.pdf) 方法的复现，训练使用 PyTorch Lightning 框架。该方法结合深度强化学习和搜索算法来解决魔方问题。原始论文展示了如何通过结合神经网络和搜索技术来解决复杂的组合优化问题，如魔方。

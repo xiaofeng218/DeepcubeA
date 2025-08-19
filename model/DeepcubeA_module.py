@@ -4,11 +4,27 @@ import torch.nn.functional as F
 import torch.optim as optim
 from pytorch_lightning import LightningModule
 from model.DNN import DNN
+from model.Cube import TARGET_STATE_ONE_HOT
 
 
 class RelativeMSELoss(nn.Module):
     def forward(self, pred, target):
         return torch.mean(((pred - target) / (target + 1e-8)) ** 2)
+
+# 判断A中是否有和b相同的张量
+def row_allclose_mask(A, b, rtol=1e-4, atol=1e-6):
+    # 计算逐元素误差
+    diff = torch.abs(A - b)  # (B, D)
+    tol = atol + rtol * torch.abs(b)  # (D,), 广播自动扩展到 (B, D)
+    
+    # 满足误差条件的元素掩码
+    mask_elements = diff <= tol  # (B, D), bool
+    
+    # 判断每行是否所有元素都满足条件
+    mask_rows = mask_elements.all(dim=1)  # (B,)
+    
+    return mask_rows
+
 
 class DeepcubeA(LightningModule):
     def __init__(self, config):
@@ -24,26 +40,22 @@ class DeepcubeA(LightningModule):
         # 输入维度（54个贴纸，每个有6种可能的颜色，使用one-hot编码）
         self.input_dim = 54 * 6
         
-        self.model_theta = DNN(self.input_dim, num_residual_blocks=4, zero_output=False)  # 训练模型
-        self.model_theta_e = DNN(self.input_dim, num_residual_blocks=4, zero_output=True).eval()  # 监督模型
+        self.model_theta = DNN(self.input_dim, num_residual_blocks=4)  # 训练模型
+        self.model_theta_e = DNN(self.input_dim, num_residual_blocks=4).eval()  # 监督模型
+
+        self.target_state = torch.tensor(TARGET_STATE_ONE_HOT, dtype=torch.float32).reshape(1, -1)
 
         if self.compile:
             self.model_theta = torch.compile(self.model_theta)
             self.model_theta_e = torch.compile(self.model_theta_e)
 
-        self.updata_K(1)
+        self.K = 1
         
         # 损失函数
         self.criterion = nn.MSELoss()
         
         # 保存超参数
         self.save_hyperparameters(config)
-    
-    def updata_K(self, K):
-        self.K = K
-        # self.model_theta.K.data.fill_(torch.tensor(K, dtype=torch.float32, device=self.device))
-        if K != 1:
-            self.model_theta_e.zero_output = False
 
     def transfer_batch_to_tensor(self, batch):
         """
@@ -82,7 +94,9 @@ class DeepcubeA(LightningModule):
         with torch.no_grad():
             neighbor_costs = []
             for chunk in chunked_neighbors:
+                mask = row_allclose_mask(chunk, self.target_state.to(chunk.device))
                 cost = self.model_theta_e(chunk)
+                cost[mask] = 0.0
                 neighbor_costs.append(cost)
             
             # 聚合结果
@@ -90,7 +104,7 @@ class DeepcubeA(LightningModule):
             neighbor_costs = neighbor_costs.view(B, N)
         
         # 计算min[J_theta_e(A(x_i, a)) + 1]
-        min_neighbor_cost = neighbor_costs.min(dim=1)[0] + 1
+        min_neighbor_cost = neighbor_costs.abs().min(dim=1)[0] + 1
         
         # 使用model_theta预测当前状态的cost
         current_cost = self.model_theta(states)
@@ -104,7 +118,7 @@ class DeepcubeA(LightningModule):
         loss, _ = self.model_step(batch)
         
         # 记录指标
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
         
         return loss
         
@@ -124,21 +138,37 @@ class DeepcubeA(LightningModule):
 
             # 如果收敛，更新model_theta_e
             self.model_theta_e.load_state_dict(self.model_theta.state_dict())
-            self.model_theta_e.zero_output = False
             
-            # 原文中没有找到上一轮训练的模型下一轮是否要继承参数，这里选择每轮训练重新初始化model_theta，防止模型过拟合到较小的打乱情况
-            self.model_theta = DNN(self.input_dim, num_residual_blocks=4, zero_output=False)
-            if self.compile:
-                self.model_theta = torch.compile(self.model_theta)
+            # 原文中没有找到上一轮训练的模型下一轮是否要继承参数，这里选择完全继承上一轮的参数，因为从头训练开销太大
+            # self.model_theta = DNN(self.input_dim, num_residual_blocks=4)
+            # if self.compile:
+            #     self.model_theta = torch.compile(self.model_theta)
             
             # 停止训练
             self.trainer.should_stop = True
+
+    def on_train_end(self):
+        # 检查训练是否正常结束（非early stopping）
+        # 只有当训练不是因为converged而停止时，才执行保存操作
+        if not self.trainer.callback_metrics.get('converged', False):
+            # 获取最后一个epoch的验证损失
+            val_loss = self.trainer.callback_metrics.get('val_loss')
+            
+            # 保存模型参数到专门的收敛模型目录
+            import os
+            os.makedirs(self.converged_checkpoint_dir, exist_ok=True)
+            checkpoint_path = os.path.join(self.converged_checkpoint_dir, f"final_model_K_{self.K}.pth")
+            torch.save(self.model_theta.state_dict(), checkpoint_path)
+            print(f'训练结束，模型已保存到 {checkpoint_path}')
+
+            # 更新model_theta_e
+            self.model_theta_e.load_state_dict(self.model_theta.state_dict())
         
     def validation_step(self, batch, batch_idx):
         # 计算验证损失
         loss, current_cost = self.model_step(batch)
-        self.log('val_loss', loss, on_epoch=True, prog_bar=True, logger=True)
-        self.log('val_cost', current_cost.mean(), on_epoch=True, logger=True)
+        self.log('val_loss', loss, on_epoch=True, prog_bar=True)
+        self.log('val_cost', current_cost.mean(), on_epoch=True)
         return loss
         
     def configure_optimizers(self):

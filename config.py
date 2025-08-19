@@ -15,11 +15,11 @@ class Config:
         self.parser.add_argument('--num_train_samples', type=int, default=10000 * 1000, help='每个epoch样本数')
     
         # 训练配置
-        self.parser.add_argument('--max_epochs', type=int, default=100, help='最大训练轮数')
-        self.parser.add_argument('--learning_rate', type=float, default=1e-3, help='学习率')
+        self.parser.add_argument('--max_epochs', type=int, default=20, help='最大训练轮数')
+        self.parser.add_argument('--learning_rate', type=float, default=2e-4, help='学习率')
         self.parser.add_argument('--weight_decay', type=float, default=0, help='权重衰减 (根据Readme不使用正则化)')
-        self.parser.add_argument('--gpus', type=int, default=1, help='GPU数量，0表示使用CPU')
-        self.parser.add_argument('--convergence_threshold', type=float, default=0.20, help='收敛阈值 (根据Readme设置为0.05)')
+        self.parser.add_argument('--devices', type=str, default="2", help="Devices to use: 'cpu', 'auto', '0', '1', '0,1', etc.")
+        self.parser.add_argument('--convergence_threshold', type=float, default=0.05, help='收敛阈值 (根据Readme设置为0.05)')
         self.parser.add_argument('--chunk_size', type=int, default=10000 * 12, help='分块大小 (用于模型预测时的分块处理)')
         self.parser.add_argument('--compile', type=bool, default=True, help='是否编译模型')
         
@@ -30,7 +30,7 @@ class Config:
         self.parser.add_argument('--seed', type=int, default=42, help='随机种子')
 
         # inference
-        self.parser.add_argument('--model_path', type=str, default='logs/20250813_1246/converged_checkpoints/converged_model_K_30.pth', help='模型路径')
+        self.parser.add_argument('--model_path', type=str, default='checkpoint/final_model_K_30.pth', help='模型路径')
         self.parser.add_argument('--actions', type=str, default=None, help='指定的魔方动作序列，用空格分隔，如 "U R F D L B"')
         
     def parse_args(self):

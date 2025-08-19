@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 plt.rcParams["font.family"] = ["SimHei", "WenQuanYi Micro Hei", "Heiti TC", "sans-serif"]
 plt.rcParams['axes.unicode_minus'] = False  # Fix minus sign display issue
 
-K_values = list(range(30))
-convergence_epochs = [0]*20 + [2, 1, 2, 3, 5, 8, 10, 13, 15, 16]
+K_values = list(range(14))
+convergence_epochs = [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 5,10,17,37]
 
 # Create figure
 plt.figure(figsize=(12, 6))
@@ -17,7 +17,7 @@ plt.plot(K_values, convergence_epochs, 'o-', color='b', linewidth=2, markersize=
 # Set chart title and axis labels
 plt.title('Model Convergence Epochs vs K Values', fontsize=16)
 plt.xlabel('K Value', fontsize=14)
-plt.ylabel('Convergence Epochs', fontsize=14)
+plt.ylabel('Convergence Epochs(1000 iterations)', fontsize=14)
 
 # Set ticks
 plt.xticks([0] + list(range(1, 11)), fontsize=12)

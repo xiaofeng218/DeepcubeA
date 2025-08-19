@@ -7,6 +7,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from model.DNN import DNN
 from model.Cube import Cube, TARGET_STATE, TARGET_STATE_ONE_HOT
 import torch  # Add missing import
+from config import Config
 
 plt.rcParams['axes.unicode_minus'] = False  # Fix minus sign display issue
 
@@ -49,7 +50,7 @@ def main():
 
     # 加载模型
     input_dim = 54 * 6  # 魔方54个贴纸，每个6种颜色，使用one-hot编码
-    model = DNN(input_dim, num_residual_blocks=4, zero_output=False)
+    model = DNN(input_dim, num_residual_blocks=4)
 
     # 加载模型权重
     try:
@@ -69,7 +70,7 @@ def main():
     cube = Cube()
 
     # 准备数据
-    num_shuffles_range = range(1, 31)  # 1到30次打乱
+    num_shuffles_range = range(1, 30)  # 1到30次打乱
     num_samples = 1000  # 每个打乱次数的样本数
     avg_outputs = []
     max_outputs = []  # 存储每个打乱次数的最大值

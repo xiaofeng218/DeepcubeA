@@ -29,8 +29,11 @@ class RubikDataset(Dataset):
         return self.cube.get_neibor_state(state)
         
     def __getitem__(self, idx):
-        # 随机选择打乱次数 i ∈ [1, K]
-        i = np.random.randint(1, self.K + 1)
+        # 随机选择打乱次数 i ∈ [1, K]，其中50%概率为K，50%概率从[1, K-1]中均匀选择
+        if np.random.random() < 0.5 and self.is_train: # 训练时提高K次打乱的概率，加速收敛
+            i = self.K
+        else:
+            i = np.random.randint(1, self.K+1)
         
         # 从初始状态开始，随机应用 i 次动作
         state = TARGET_STATE.copy()

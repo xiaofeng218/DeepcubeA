@@ -103,7 +103,7 @@ python app.py
 
 ### 训练结果
 
-不同K值模型收敛（损失小于0.20）所需的epoch数（`1000 step/epoch`）：
+不同K值模型收敛（损失小于0.05）所需的epoch数（`1000 step/epoch`）：
   ![k_convergence_epochs](assets/k_convergence_epochs.png)
 
 可以看到，模型收敛所需的训练epoch数随K的增加呈现出指数级增加的趋势，考虑到复现成本，在 K>15 之后，我们并未再
